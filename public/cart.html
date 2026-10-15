@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your cart</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/" data-store-name>Store</a>
+      <nav class="nav">
+        <a href="/">Shop</a>
+        <a href="/track.html">Track order</a>
+        <a class="cart-link" href="/cart.html">Cart <span class="badge" id="cart-count">0</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>Your cart</h1>
+    <p class="sub">Review items before checkout.</p>
+    <div id="cart"></div>
+  </main>
+
+  <footer><div class="wrap">© <span id="year"></span> <span data-store-name></span></div></footer>
+
+  <script src="/assets/app.js"></script>
+  <script>
+    async function render() {
+      const lines = await App.cartLines();
+      const el = document.getElementById("cart");
+      if (!lines.length) {
+        el.innerHTML = `<div class="panel empty">Your cart is empty.<br><br><a class="btn" href="/">Browse products</a></div>`;
+        return;
+      }
+      const t = await App.totals(lines);
+      const store = await App.loadStore();
+      el.innerHTML = `
+        <div class="layout-2">
+          <div class="panel">
+            <table class="lines">
+              <thead><tr><th></th><th>Item</th><th>Qty</th><th class="num">Total</th></tr></thead>
+              <tbody>
+              ${lines
+                .map(
+                  (l) => `
+                <tr>
+                  <td><img class="thumb" src="/${App.esc(l.image)}" alt=""></td>
+                  <td><strong>${App.esc(l.name)}</strong><br><span class="muted">${App.inr(l.price)} each</span><br>
+                      <a href="#" data-remove="${App.esc(l.id)}" class="muted">Remove</a></td>
+                  <td><div class="qty"><button data-dec="${App.esc(l.id)}" aria-label="Decrease">−</button><span>${l.qty}</span><button data-inc="${App.esc(l.id)}" aria-label="Increase">+</button></div></td>
+                  <td class="num">${App.inr(l.lineTotal)}</td>
+                </tr>`
+                )
+                .join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="panel">
+            <h3 style="margin-top:0">Order summary</h3>
+            <div class="totals">
+              <div><span>Subtotal</span><span>${App.inr(t.subtotal)}</span></div>
+              <div><span>GST (${Math.round(store.gstRate * 100)}%)</span><span>${App.inr(t.gst)}</span></div>
+              <div><span>Shipping</span><span>${t.shipping ? App.inr(t.shipping) : "Free"}</span></div>
+              <div class="grand"><span>Total</span><span>${App.inr(t.total)}</span></div>
+            </div>
+            ${t.shipping ? `<p class="muted" style="font-size:.85rem">Free shipping on orders above ${App.inr(store.freeShippingAbove)}.</p>` : ""}
+            <a class="btn block" href="/checkout.html">Proceed to checkout</a>
+          </div>
+        </div>`;
+    }
+
+    document.addEventListener("click", (e) => {
+      const cart = App.getCart();
+      const inc = e.target.closest("[data-inc]");
+      const dec = e.target.closest("[data-dec]");
+      const rem = e.target.closest("[data-remove]");
+      if (inc) App.setQty(inc.dataset.inc, (cart[inc.dataset.inc] || 0) + 1);
+      if (dec) App.setQty(dec.dataset.dec, (cart[dec.dataset.dec] || 0) - 1);
+      if (rem) { e.preventDefault(); App.setQty(rem.dataset.remove, 0); }
+      if (inc || dec || rem) render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

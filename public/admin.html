@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Admin · Orders</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/"><span data-store-name>Store</span> · Admin</a>
+      <nav class="nav"><a href="/">View shop</a><a href="#" id="logout" style="display:none">Log out</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <form class="panel" id="login" style="max-width:420px">
+      <h1>Admin login</h1>
+      <p class="sub">Enter the admin key you set as <code>ADMIN_KEY</code> in Cloudflare.</p>
+      <div class="field"><label for="key">Admin key</label><input id="key" type="password" required></div>
+      <button class="btn" type="submit">Log in</button>
+      <div id="login-msg" style="margin-top:12px"></div>
+    </form>
+
+    <section id="dash" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><h1>Orders</h1><p class="sub" id="count"></p></div>
+        <button class="btn ghost small" id="refresh">Refresh</button>
+      </div>
+      <div id="msg"></div>
+      <div class="panel table-scroll">
+        <table class="admin-table">
+          <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th><th>Update shipment</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/assets/app.js"></script>
+  <script>
+    const KEY = "bh_admin_key";
+    const getKey = () => { try { return sessionStorage.getItem(KEY) || ""; } catch { return ""; } };
+    const setKey = (k) => { try { k ? sessionStorage.setItem(KEY, k) : sessionStorage.removeItem(KEY); } catch {} };
+    const UPDATABLE = ["placed", "packed", "shipped", "out_for_delivery", "delivered", "cancelled"];
+
+    async function api(path, opts = {}) {
+      const r = await fetch(path, { ...opts, headers: { "content-type": "application/json", "x-admin-key": getKey(), ...(opts.headers || {}) } });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { const e = new Error(data.error || `Request failed (${r.status})`); e.status = r.status; throw e; }
+      return data;
+    }
+
+    async function load() {
+      const { orders } = await api("/api/admin/orders");
+      document.getElementById("login").style.display = "none";
+      document.getElementById("dash").style.display = "";
+      document.getElementById("logout").style.display = "";
+      document.getElementById("count").textContent = `${orders.length} order(s), newest first`;
+      document.getElementById("rows").innerHTML = orders.length
+        ? orders.map((o) => `
+          <tr data-id="${App.esc(o.id)}">
+            <td><strong>${App.esc(o.id)}</strong><br><span class="muted">${App.fmtDate(o.createdAt)}</span>
+              ${o.invoice ? `<br><a href="/invoice.html?id=${encodeURIComponent(o.id)}&email=${encodeURIComponent(o.customer.email)}" target="_blank">${App.esc(o.invoice.number)}</a>` : ""}</td>
+            <td>${App.esc(o.customer.name)}<br><span class="muted">${App.esc(o.customer.email)}<br>${App.esc(o.customer.phone)}<br>${App.esc(o.customer.city)}, ${App.esc(o.customer.pincode)}</span></td>
+            <td>${App.inrPaise(o.total)}<br><span class="muted">${o.items.reduce((a, l) => a + l.qty, 0)} item(s)</span></td>
+            <td><span class="status-pill ${o.status}">${App.STATUS_LABELS[o.status] || o.status}</span></td>
+            <td style="min-width:240px">
+              ${o.status === "pending_payment" || o.status === "payment_failed" ? `<span class="muted">Not paid, cannot ship</span>` : `
+              <select data-f="status">${UPDATABLE.map((s) => `<option value="${s}" ${s === o.status ? "selected" : ""}>${App.STATUS_LABELS[s]}</option>`).join("")}</select>
+              <div class="row2" style="margin-top:6px;gap:6px">
+                <input data-f="courier" placeholder="Courier" value="${App.esc(o.shipment.courier || "")}">
+                <input data-f="awb" placeholder="Tracking no." value="${App.esc(o.shipment.awb || "")}">
+              </div>
+              <input data-f="note" placeholder="Note shown to customer (optional)" style="margin-top:6px">
+              <button class="btn small" data-save style="margin-top:6px">Save</button>`}
+            </td>
+          </tr>`).join("")
+        : `<tr><td colspan="5" class="empty">No orders yet. Place a test order from the shop.</td></tr>`;
+    }
+
+    document.getElementById("login").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setKey(document.getElementById("key").value);
+      try { await load(); } catch (err) {
+        setKey("");
+        document.getElementById("login-msg").innerHTML = `<div class="notice err">${App.esc(err.message)}</div>`;
+      }
+    });
+    document.getElementById("refresh").addEventListener("click", () => load());
+    document.getElementById("logout").addEventListener("click", (e) => { e.preventDefault(); setKey(""); location.reload(); });
+
+    document.getElementById("rows").addEventListener("click", async (e) => {
+      if (!e.target.matches("[data-save]")) return;
+      const tr = e.target.closest("tr");
+      const f = (n) => tr.querySelector(`[data-f="${n}"]`).value.trim();
+      e.target.disabled = true;
+      try {
+        await api("/api/admin/orders", { method: "POST", body: JSON.stringify({ id: tr.dataset.id, status: f("status"), courier: f("courier"), awb: f("awb"), note: f("note") }) });
+        document.getElementById("msg").innerHTML = `<div class="notice ok">Order ${App.esc(tr.dataset.id)} updated.</div>`;
+        await load();
+      } catch (err) {
+        document.getElementById("msg").innerHTML = `<div class="notice err">${App.esc(err.message)}</div>`;
+        e.target.disabled = false;
+      }
+    });
+
+    if (getKey()) load().catch(() => setKey(""));
+  </script>
+</body>
+</html>

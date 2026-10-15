@@ -1,0 +1,5 @@
+# Copy this file to .dev.vars for local testing (never commit .dev.vars).
+# Leave the Razorpay lines commented out to use the built-in demo payment screen.
+ADMIN_KEY=change-me
+# RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxxxx
+# RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Checkout</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/" data-store-name>Store</a>
+      <nav class="nav">
+        <a href="/">Shop</a>
+        <a href="/track.html">Track order</a>
+        <a class="cart-link" href="/cart.html">Cart <span class="badge" id="cart-count">0</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>Checkout</h1>
+    <p class="sub">Enter delivery details and pay securely.</p>
+    <div id="mode-note"></div>
+    <div id="msg"></div>
+
+    <div class="layout-2">
+      <form class="panel" id="form" novalidate>
+        <h3 style="margin-top:0">Delivery details</h3>
+        <div class="field"><label for="name">Full name</label><input id="name" name="name" required autocomplete="name"></div>
+        <div class="row2">
+          <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"></div>
+          <div class="field"><label for="phone">Mobile number</label><input id="phone" name="phone" type="tel" required pattern="[6-9][0-9]{9}" maxlength="10" placeholder="10-digit number" autocomplete="tel-national"></div>
+        </div>
+        <div class="field"><label for="address">Address</label><textarea id="address" name="address" rows="2" required autocomplete="street-address"></textarea></div>
+        <div class="row2">
+          <div class="field"><label for="city">City</label><input id="city" name="city" required autocomplete="address-level2"></div>
+          <div class="field"><label for="pincode">PIN code</label><input id="pincode" name="pincode" required pattern="[1-9][0-9]{5}" maxlength="6" autocomplete="postal-code"></div>
+        </div>
+        <div class="field">
+          <label for="state">State / UT</label>
+          <select id="state" name="state" required><option value="">Select state</option></select>
+        </div>
+        <button class="btn block" id="pay" type="submit">Pay now</button>
+        <p class="muted" style="font-size:.8rem;margin-bottom:0">Payments are processed by Razorpay. We never see your card details.</p>
+      </form>
+
+      <div class="panel" id="summary"></div>
+    </div>
+  </main>
+
+  <footer><div class="wrap">© <span id="year"></span> <span data-store-name></span></div></footer>
+
+  <script src="/assets/app.js"></script>
+  <script>
+    const STATES = ["Andaman and Nicobar Islands","Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chandigarh","Chhattisgarh","Dadra and Nagar Haveli and Daman and Diu","Delhi","Goa","Gujarat","Haryana","Himachal Pradesh","Jammu and Kashmir","Jharkhand","Karnataka","Kerala","Ladakh","Lakshadweep","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Puducherry","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal"];
+    document.getElementById("state").insertAdjacentHTML("beforeend", STATES.map((s) => `<option>${s}</option>`).join(""));
+
+    let config = null;
+    const msg = (html, kind = "err") => (document.getElementById("msg").innerHTML = html ? `<div class="notice ${kind}">${html}</div>` : "");
+
+    async function init() {
+      const lines = await App.cartLines();
+      if (!lines.length) { location.href = "/cart.html"; return; }
+      const t = await App.totals(lines);
+      document.getElementById("summary").innerHTML = `
+        <h3 style="margin-top:0">Order summary</h3>
+        <table class="lines"><tbody>
+          ${lines.map((l) => `<tr><td>${App.esc(l.name)} <span class="muted">× ${l.qty}</span></td><td class="num">${App.inr(l.lineTotal)}</td></tr>`).join("")}
+        </tbody></table>
+        <div class="totals">
+          <div><span>Subtotal</span><span>${App.inr(t.subtotal)}</span></div>
+          <div><span>GST</span><span>${App.inr(t.gst)}</span></div>
+          <div><span>Shipping</span><span>${t.shipping ? App.inr(t.shipping) : "Free"}</span></div>
+          <div class="grand"><span>Total</span><span>${App.inr(t.total)}</span></div>
+        </div>`;
+      document.getElementById("pay").textContent = `Pay ${App.inr(t.total)}`;
+
+      config = await (await fetch("/api/config")).json();
+      if (config.demo) {
+        document.getElementById("mode-note").innerHTML =
+          `<div class="notice info"><strong>Demo payment mode.</strong> Razorpay keys are not configured, so a simulated payment screen is used. Add your Razorpay test keys to use the real test checkout.</div>`;
+      } else {
+        const s = document.createElement("script");
+        s.src = "https://checkout.razorpay.com/v1/checkout.js";
+        document.head.appendChild(s);
+      }
+    }
+
+    function readForm() {
+      const f = document.getElementById("form");
+      const data = Object.fromEntries(new FormData(f).entries());
+      for (const el of f.elements) {
+        if (el.name && !el.checkValidity()) { el.focus(); throw new Error(`Please check: ${el.previousElementSibling?.textContent || el.name}`); }
+      }
+      return data;
+    }
+
+    async function verify(payload) {
+      const r = await fetch("/api/verify-payment", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const out = await r.json();
+      if (!r.ok) throw new Error(out.error || "Payment verification failed");
+      App.clearCart();
+      location.href = `/track.html?id=${encodeURIComponent(out.orderId)}&email=${encodeURIComponent(out.email)}&new=1`;
+    }
+
+    function demoPay(order) {
+      return new Promise((resolve, reject) => {
+        const bg = document.createElement("div");
+        bg.className = "modal-bg";
+        bg.innerHTML = `<div class="modal">
+          <h3>Simulated payment</h3>
+          <p>Order <strong>${App.esc(order.orderId)}</strong><br>Amount <strong>${App.inrPaise(order.amount)}</strong></p>
+          <p class="muted" style="font-size:.85rem">This screen stands in for the Razorpay checkout while no keys are configured.</p>
+          <div class="actions">
+            <button class="btn" data-r="ok">Simulate successful payment</button>
+            <button class="btn ghost" data-r="fail">Simulate failed payment</button>
+          </div></div>`;
+        document.body.appendChild(bg);
+        bg.addEventListener("click", (e) => {
+          const r = e.target.dataset.r;
+          if (!r) return;
+          bg.remove();
+          r === "ok" ? resolve() : reject(new Error("Payment failed (simulated). You can try again."));
+        });
+      });
+    }
+
+    document.getElementById("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg("");
+      const btn = document.getElementById("pay");
+      let customer;
+      try { customer = readForm(); } catch (err) { msg(App.esc(err.message)); return; }
+
+      btn.disabled = true;
+      try {
+        const items = Object.entries(App.getCart()).map(([id, qty]) => ({ id, qty }));
+        const r = await fetch("/api/create-order", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items, customer }) });
+        const order = await r.json();
+        if (!r.ok) throw new Error(order.error || "Could not create order");
+
+        if (order.demo) {
+          await demoPay(order);
+          await verify({ orderId: order.orderId, demo: true });
+          return;
+        }
+
+        const store = await App.loadStore();
+        const rzp = new Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: "INR",
+          name: store.name,
+          description: `Order ${order.orderId}`,
+          order_id: order.razorpayOrderId,
+          prefill: { name: customer.name, email: customer.email, contact: customer.phone },
+          notes: { store_order_id: order.orderId },
+          theme: { color: "#1f4fd8" },
+          handler: (resp) =>
+            verify({
+              orderId: order.orderId,
+              razorpay_order_id: resp.razorpay_order_id,
+              razorpay_payment_id: resp.razorpay_payment_id,
+              razorpay_signature: resp.razorpay_signature,
+            }).catch((err) => { msg(App.esc(err.message)); btn.disabled = false; }),
+          modal: { ondismiss: () => { btn.disabled = false; } },
+        });
+        rzp.on("payment.failed", (resp) => {
+          msg(`Payment failed: ${App.esc(resp.error?.description || "unknown error")}. You can try again.`);
+          btn.disabled = false;
+        });
+        rzp.open();
+      } catch (err) {
+        msg(App.esc(err.message));
+        btn.disabled = false;
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

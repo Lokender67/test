@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Track your order</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/" data-store-name>Store</a>
+      <nav class="nav">
+        <a href="/">Shop</a>
+        <a href="/track.html">Track order</a>
+        <a class="cart-link" href="/cart.html">Cart <span class="badge" id="cart-count">0</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="result"></div>
+
+    <form class="panel" id="lookup" style="max-width:520px">
+      <h1>Track your order</h1>
+      <p class="sub">Enter the order ID from your confirmation and the email you used at checkout.</p>
+      <div class="field"><label for="oid">Order ID</label><input id="oid" required placeholder="e.g. BH-M1X2Y3Z4-AB"></div>
+      <div class="field"><label for="oemail">Email</label><input id="oemail" type="email" required></div>
+      <button class="btn" type="submit">Track order</button>
+    </form>
+  </main>
+
+  <footer><div class="wrap">© <span id="year"></span> <span data-store-name></span></div></footer>
+
+  <script src="/assets/app.js"></script>
+  <script>
+    const result = document.getElementById("result");
+
+    function timeline(o) {
+      const hist = o.shipment.history;
+      if (o.status === "cancelled" || o.status === "payment_failed" || o.status === "pending_payment") {
+        return `<ul class="timeline">${hist.map((h) => `<li class="done"><span class="dot"></span><div class="t">${App.STATUS_LABELS[h.status] || h.status}</div><div class="when">${App.fmtDate(h.at)}${h.note ? " · " + App.esc(h.note) : ""}</div></li>`).join("")}</ul>`;
+      }
+      const reached = App.FLOW.indexOf(o.status);
+      return `<ul class="timeline">${App.FLOW.map((st, i) => {
+        const h = [...hist].reverse().find((x) => x.status === st);
+        const cls = i < reached ? "done" : i === reached ? (st === "delivered" ? "done" : "current") : "";
+        return `<li class="${cls}"><span class="dot"></span><div class="t">${App.STATUS_LABELS[st]}</div>
+          <div class="when">${h ? App.fmtDate(h.at) + (h.note ? " · " + App.esc(h.note) : "") : i <= reached ? "Completed" : "Pending"}</div></li>`;
+      }).join("")}</ul>`;
+    }
+
+    async function lookup(id, email, isNew) {
+      result.innerHTML = `<p class="muted">Looking up order…</p>`;
+      const r = await fetch(`/api/order?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`);
+      const o = await r.json();
+      if (!r.ok) { result.innerHTML = `<div class="notice err">${App.esc(o.error || "Order not found")}</div>`; return; }
+
+      document.getElementById("lookup").style.display = "none";
+      const invUrl = `/invoice.html?id=${encodeURIComponent(o.id)}&email=${encodeURIComponent(email)}`;
+      const sh = o.shipment;
+      result.innerHTML = `
+        ${isNew ? `<div class="notice ok"><strong>Thank you! Your payment was successful.</strong> A copy of your invoice is available below. Save your order ID <strong>${App.esc(o.id)}</strong> to track delivery.</div>` : ""}
+        <div class="layout-2">
+          <div class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+              <div><div class="muted" style="font-size:.85rem">Order</div><h1 style="margin:0">${App.esc(o.id)}</h1></div>
+              <span class="status-pill ${o.status}">${App.STATUS_LABELS[o.status] || o.status}</span>
+            </div>
+            <p class="muted" style="margin:6px 0 0">Placed ${App.fmtDate(o.createdAt)}</p>
+            ${sh.courier || sh.awb ? `<p style="margin:12px 0 0"><strong>Courier:</strong> ${App.esc(sh.courier || "—")} &nbsp; <strong>Tracking no.:</strong> ${App.esc(sh.awb || "—")}</p>` : ""}
+            ${timeline(o)}
+          </div>
+          <div class="panel">
+            <h3 style="margin-top:0">Items</h3>
+            <table class="lines"><tbody>
+              ${o.items.map((l) => `<tr><td>${App.esc(l.name)} <span class="muted">× ${l.qty}</span></td><td class="num">${App.inrPaise(l.lineTotal)}</td></tr>`).join("")}
+            </tbody></table>
+            <div class="totals"><div class="grand"><span>Total paid</span><span>${App.inrPaise(o.total)}</span></div></div>
+            <p class="muted" style="font-size:.9rem">Ship to: ${App.esc(o.customer.name)}, ${App.esc(o.customer.city)}, ${App.esc(o.customer.state)} ${App.esc(o.customer.pincode)}</p>
+            ${o.invoice ? `<a class="btn block" href="${invUrl}" target="_blank">View / download invoice</a>` : ""}
+            <p style="text-align:center;margin:12px 0 0"><a href="/track.html">Track another order</a></p>
+          </div>
+        </div>`;
+    }
+
+    document.getElementById("lookup").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = document.getElementById("oid").value.trim();
+      const email = document.getElementById("oemail").value.trim();
+      history.replaceState(null, "", `?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`);
+      lookup(id, email, false);
+    });
+
+    const id = App.qs("id"), email = App.qs("email");
+    if (id && email) lookup(id, email, App.qs("new") === "1");
+  </script>
+</body>
+</html>

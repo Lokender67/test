@@ -1,0 +1,18 @@
+{
+  "name": "Bridgehorn Test Store",
+  "tagline": "Quality everyday goods, delivered.",
+  "currency": "INR",
+  "gstRate": 0.18,
+  "shippingFee": 79,
+  "freeShippingAbove": 999,
+  "seller": {
+    "legalName": "Bridgehorn Test Store (Demo)",
+    "address": "123 Test Street, Sector 1",
+    "city": "Gurugram",
+    "state": "Haryana",
+    "pincode": "122001",
+    "gstin": "06AAAAA0000A1Z5",
+    "email": "support@example.com",
+    "phone": "+91 90000 00000"
+  }
+}

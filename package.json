@@ -1,0 +1,11 @@
+{
+  "name": "bh-test-store",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev public --kv ORDERS --port 8788"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}

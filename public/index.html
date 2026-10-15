@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shop</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/" data-store-name>Store</a>
+      <nav class="nav">
+        <a href="/">Shop</a>
+        <a href="/track.html">Track order</a>
+        <a class="cart-link" href="/cart.html">Cart <span class="badge" id="cart-count">0</span></a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>All products</h1>
+    <p class="sub" id="tagline"></p>
+    <div class="filters" id="filters"></div>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <footer><div class="wrap">© <span id="year"></span> <span data-store-name></span> · Test store, no real orders are fulfilled.</div></footer>
+
+  <script src="/assets/app.js"></script>
+  <script>
+    let activeCat = "All";
+
+    async function render() {
+      const [products, store] = await Promise.all([App.loadProducts(), App.loadStore()]);
+      document.getElementById("tagline").textContent = store.tagline;
+      document.title = store.name;
+
+      const cats = ["All", ...new Set(products.map((p) => p.category))];
+      document.getElementById("filters").innerHTML = cats
+        .map((c) => `<button class="chip ${c === activeCat ? "active" : ""}" data-cat="${App.esc(c)}">${App.esc(c)}</button>`)
+        .join("");
+
+      const list = activeCat === "All" ? products : products.filter((p) => p.category === activeCat);
+      document.getElementById("grid").innerHTML = list
+        .map(
+          (p) => `
+        <article class="card">
+          <img src="/${App.esc(p.image)}" alt="${App.esc(p.name)}" loading="lazy" />
+          <div class="body">
+            <span class="cat">${App.esc(p.category)}</span>
+            <h3>${App.esc(p.name)}</h3>
+            <p>${App.esc(p.description)}</p>
+            <div class="buy">
+              <span class="price">${App.inr(p.price)}</span>
+              ${
+                p.inStock
+                  ? `<button class="btn small" data-add="${App.esc(p.id)}">Add to cart</button>`
+                  : `<span class="oos">Out of stock</span>`
+              }
+            </div>
+          </div>
+        </article>`
+        )
+        .join("");
+    }
+
+    document.addEventListener("click", (e) => {
+      const cat = e.target.closest("[data-cat]");
+      if (cat) { activeCat = cat.dataset.cat; render(); }
+      const add = e.target.closest("[data-add]");
+      if (add) {
+        App.addToCart(add.dataset.add);
+        add.textContent = "Added ✓";
+        setTimeout(() => (add.textContent = "Add to cart"), 1200);
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>

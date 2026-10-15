@@ -1,0 +1,56 @@
+[
+  {
+    "id": "tshirt-classic",
+    "name": "Classic Cotton T-Shirt",
+    "category": "Apparel",
+    "price": 499,
+    "image": "images/tshirt-classic.svg",
+    "description": "100% combed cotton, regular fit, breathable everyday tee.",
+    "inStock": true
+  },
+  {
+    "id": "wallet-leather",
+    "name": "Slim Leather Wallet",
+    "category": "Accessories",
+    "price": 899,
+    "image": "images/wallet-leather.svg",
+    "description": "Genuine leather bifold with 6 card slots and RFID lining.",
+    "inStock": true
+  },
+  {
+    "id": "mug-ceramic",
+    "name": "Ceramic Coffee Mug",
+    "category": "Home",
+    "price": 349,
+    "image": "images/mug-ceramic.svg",
+    "description": "350 ml glazed stoneware mug, microwave and dishwasher safe.",
+    "inStock": true
+  },
+  {
+    "id": "earbuds-wireless",
+    "name": "Wireless Earbuds",
+    "category": "Electronics",
+    "price": 1999,
+    "image": "images/earbuds-wireless.svg",
+    "description": "Bluetooth 5.3, 24-hour battery with case, IPX4 splash resistant.",
+    "inStock": true
+  },
+  {
+    "id": "backpack-canvas",
+    "name": "Canvas Backpack",
+    "category": "Accessories",
+    "price": 1499,
+    "image": "images/backpack-canvas.svg",
+    "description": "22 L water-resistant canvas with padded 15\" laptop sleeve.",
+    "inStock": true
+  },
+  {
+    "id": "bottle-steel",
+    "name": "Steel Water Bottle",
+    "category": "Home",
+    "price": 599,
+    "image": "images/bottle-steel.svg",
+    "description": "750 ml double-wall insulated, keeps drinks cold for 24 hours.",
+    "inStock": false
+  }
+]
